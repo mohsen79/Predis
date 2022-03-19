@@ -22,7 +22,11 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::controller(IndexController::class)->group(function () {
+    Route::get('products/count', 'getProductsCount');
     Route::get('products', 'getProducts');
+    Route::get('products/{product}', 'getSingleProducts');
+    Route::get('tags', 'getTags');
+    Route::get('tag/products', 'getProductsByTags');
     Route::post('products', 'storeProduct');
     Route::post('tags', 'addTag');
     Route::post('product/{product}/tag', 'productsTags');

@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Redis;
 
 class IndexController extends Controller
 {
-    public function getProducts()
+    public function getProductsCount()
     {
         if (Redis::exists('products_id')) {
             return Redis::get('products_id');
@@ -64,4 +64,39 @@ class IndexController extends Controller
         }
     }
 
+    public function getTags()
+    {
+        return response()->json(['tags' => Redis::smembers('tags')]);
+    }
+
+    public function getProducts()
+    {
+        $productsId = Redis::zrange('products', 0, -1);
+        $products = [];
+        foreach ($productsId as $productId) {
+            $products[$productId] = Redis::hgetall("product:$productId");
+        }
+        return response()->json(['products' => $products], 200);
+    }
+
+    public function getProductsByTags(Request $request)
+    {
+        $productsId = Redis::lrange("tag:$request->tag", 0, -1);
+        $products = [];
+        foreach ($productsId as $productId) {
+            $products[] = Redis::hgetall("product:{$productId}");
+        }
+        return response()->json(['products' => $products], 200);
+    }
+
+    public function getSingleProducts($id)
+    {
+        $products = Redis::zrange("products", 0, -1);
+        if (in_array($id, $products)) {
+            $product = Redis::hgetall("product:{$id}");
+            return response()->json(['product' => $product], 200);
+        } else {
+            return response()->json(['error' => 'product not found'], 404);
+        }
+    }
 }
