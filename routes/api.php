@@ -31,4 +31,7 @@ Route::controller(IndexController::class)->group(function () {
     Route::post('tags', 'addTag');
     Route::post('product/{product}/tag', 'productsTags');
     Route::post('tag/products/{product}', 'addProductsToTags');
+    Route::delete('tag', 'deleteTag');
+    Route::delete('product/{product}', 'deleteProduct');
+    Route::delete('tag/products/delete', 'deleteProductByTag');
 });

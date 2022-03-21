@@ -9,6 +9,12 @@ use Illuminate\Support\Facades\Redis;
 
 class IndexController extends Controller
 {
+
+    public function __construct()
+    {
+        $this->redis = Redis::connection();
+    }
+
     public function getProductsCount()
     {
         if (Redis::exists('products_id')) {
@@ -99,4 +105,77 @@ class IndexController extends Controller
             return response()->json(['error' => 'product not found'], 404);
         }
     }
+
+    public function deleteTag(Request $request)
+    {
+        $tags = Redis::smembers('tags');
+        $productsCount = $this->redis->get('products_id');
+        if (!in_array($request->tag, $tags)) {
+            abort(404, 'tag not found');
+        }
+        //delete tag
+        Redis::srem('tags', $request->tag);
+        //delete tag that has the products id
+        $this->redis->del("tag:{$request->tag}");
+        for ($i = 1; $i < $productsCount - 1; $i++) {
+            $productsTags = $this->redis->smembers("product:{$i}:tags");
+            if (in_array($request->tag, $productsTags)) {
+                //delete products that has the tag
+                $this->redis->srem("product:{$i}:tags", $request->tag);
+            }
+        }
+        return response()->json(['message' => 'tag deleted'], 404);
+    }
+
+    public function deleteProduct($id)
+    {
+        $products = Redis::zrange("products", 0, -1);
+        if (!in_array($id, $products)) {
+            abort(404, 'product does not exist');
+        }
+        $this->redis->pipeline(function ($pipe) use ($id) {
+            $pipe->zrem('products', $id);
+            $pipe->decr('products_id');
+            $pipe->del("product:{$id}");
+            $pipe->del("product:{$id}:tags");
+            $tags = $this->redis->keys('tag:*');
+            $tagProducts = [];
+            foreach ($tags as $tag) {
+                $value = $this->redis->lrange($tag, 0, -1);
+                $tagProducts = $value;
+                foreach ($tagProducts as $product) {
+                    if (in_array($id, $tagProducts)) {
+                        $this->redis->lrem($tag, 1, $id);
+                    }
+                }
+            }
+        });
+        return response()->json(['message' => 'product deleted']);
+    }
+
+    public function deleteProductByTag(Request $request)
+    {
+        $tags = $this->redis->smembers('tags');
+        $products = $this->redis->zrange('products', 0, -1);
+        if (!in_array($request->tag, $tags)) {
+            abort(404, 'tag not found');
+        }
+        $tagsProcuts = $this->redis->lrange("tag:{$request->tag}", 0, -1);
+        $this->redis->multi();
+        foreach ($tagsProcuts as $productId) {
+            if (in_array($productId, $products)) {
+                $this->redis->pipeline(function ($pipe) use ($productId, $request) {
+                    $pipe->zrem('products', $productId);
+                    $pipe->decr('products_id');
+                    $pipe->del("product:{$productId}");
+                    $pipe->del("product:{$productId}:tags");
+                    $pipe->del("tag:{$request->tag}");
+                });
+            }
+        }
+        $this->redis->exec();
+        return response()->json(['message' => 'products deleted']);
+    }
+    //todo refactor tag's products
+    //todo user auth
 }
