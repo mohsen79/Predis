@@ -17,3 +17,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+Route::get('redis', function () {
+    $data = [
+        'event' => 'test',
+        'data' => [
+            'name' => 'mohsen'
+        ]
+    ];
+    Redis::publish('test-channel', json_encode($data));
+});
